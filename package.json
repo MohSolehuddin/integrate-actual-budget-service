@@ -1,0 +1,22 @@
+{
+  "name": "integrate-actual-budget-service",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^25.8.0"
+  },
+  "peerDependencies": {
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@actual-app/api": "^26.5.2",
+    "@fastify/jwt": "^10.0.0",
+    "argon2": "^0.44.0",
+    "bcrypt": "^6.0.0",
+    "fastify": "^5.8.5",
+    "sequelize": "^6.37.8",
+    "sqlite3": "^5.1.7"
+  }
+}
