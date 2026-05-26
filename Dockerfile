@@ -3,9 +3,10 @@
 FROM oven/bun:alpine AS base
 WORKDIR /app
 
-# install dependencies into temp directory
-# this will cache them and speed up future builds
+# install native build dependencies (needed by better-sqlite3 / node-gyp)
 FROM base AS install
+RUN apk add --no-cache python3 make g++ linux-headers
+
 RUN mkdir -p /temp/dev
 COPY package.json bun.lock* /temp/dev/
 RUN cd /temp/dev && bun install --frozen-lockfile
