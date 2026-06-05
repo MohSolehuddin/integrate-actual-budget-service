@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { IActualBudgetService } from '../../../domain/interfaces/IActualBudgetService';
 import { JwtService } from '../../../infrastructure/security/JwtService';
 import { LoginUseCase } from '../../../use-cases/auth/LoginUseCase';
+import { RegisterUseCase } from '../../../use-cases/auth/RegisterUseCase';
 import { GetAccountsUseCase } from '../../../use-cases/budget/GetAccountsUseCase';
 import { GetCategoriesUseCase } from '../../../use-cases/budget/GetCategoriesUseCase';
 import { AddTransactionUseCase } from '../../../use-cases/budget/AddTransactionUseCase';
@@ -15,7 +16,8 @@ export async function setupRoutes(server: FastifyInstance, actualBudgetService: 
   const jwtService = new JwtService(server);
   const userRepository = new UserRepository();
   const loginUseCase = new LoginUseCase(userRepository, jwtService);
-  const authController = new AuthController(loginUseCase);
+  const registerUseCase = new RegisterUseCase(userRepository, jwtService);
+  const authController = new AuthController(loginUseCase, registerUseCase);
 
   const getAccountsUseCase = new GetAccountsUseCase(actualBudgetService);
   const getCategoriesUseCase = new GetCategoriesUseCase(actualBudgetService);
@@ -39,6 +41,11 @@ export async function setupRoutes(server: FastifyInstance, actualBudgetService: 
   // Public Auth Route
   server.post('/login', async (request, reply) => {
     return authController.login(request, reply);
+  });
+
+  // Public Register Route
+  server.post('/register', async (request, reply) => {
+    return authController.register(request, reply);
   });
 
   // base api endpoint

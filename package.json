@@ -3,13 +3,17 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "build": "tsc --noEmit",
+    "start": "bun run src/index.ts"
+  },
   "devDependencies": {
+    "typescript": "^6.0.3",
     "@types/bun": "latest",
     "@types/node": "^25.8.0"
   },
-  "peerDependencies": {
-    "typescript": "^6.0.3"
-  },
+  "peerDependencies": {},
   "dependencies": {
     "@actual-app/api": "^26.5.2",
     "@fastify/jwt": "^10.0.0",

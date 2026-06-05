@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 
 export class JwtService {
   constructor(private readonly server: FastifyInstance) {}

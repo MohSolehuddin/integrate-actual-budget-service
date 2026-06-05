@@ -1,4 +1,4 @@
-import { IActualBudgetService } from '../../domain/interfaces/IActualBudgetService';
+import type { IActualBudgetService } from '../../domain/interfaces/IActualBudgetService';
 
 export class GetAccountsUseCase {
   constructor(private actualBudgetService: IActualBudgetService) {}

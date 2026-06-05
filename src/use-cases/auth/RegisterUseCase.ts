@@ -20,8 +20,8 @@ export class RegisterUseCase {
     // Hash the password
     const hashedPassword = await argon2.hash(password);
 
-    // Create the user
-    const newUser = new User(crypto.randomUUID(), username, role, hashedPassword);
+    // Create the user (id will be generated automatically by User class)
+    const newUser = new User(undefined as unknown as string, username, role, hashedPassword);
     const user = await this.userRepository.create(newUser);
 
     // Generate JWT token
