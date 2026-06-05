@@ -5,7 +5,7 @@ WORKDIR /app
 
 # install native build dependencies (needed by better-sqlite3 / node-gyp)
 FROM base AS install
-RUN apk add --no-cache python3 make g++ linux-headers
+RUN apk add --no-cache python3 make g++ linux-headers py3-setuptools
 
 # install all dependencies into temp directory
 RUN mkdir -p /temp/dev
