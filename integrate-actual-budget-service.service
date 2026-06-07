@@ -1,0 +1,16 @@
+[Unit]
+Description=Integrate Actual Budget Service
+After=network.target
+
+[Service]
+Type=simple
+User=moh_solehuddin190805
+WorkingDirectory=/home/moh_solehuddin190805/projects/integrate-actual-budget-service
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+EnvironmentFile=/home/moh_solehuddin190805/projects/integrate-actual-budget-service/.env
+
+[Install]
+WantedBy=multi-user.target
