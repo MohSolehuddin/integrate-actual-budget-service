@@ -43,8 +43,11 @@ services:
       - POSTGRES_DB=budget_service
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - ACTUAL_BASE_URL=https://actual-budget.msytc.my.id:5006
+      - ACTUAL_BASE_URL=http://actual_budget:5006
       - ACTUAL_DEFAULT_PASSWORD=secret
+      - ACTUAL_HTTP_API_URL=http://actual-http-api:5007
+      - BUDGET_SERVICE_URL=http://budget-service:3001
+      - TELEGRAM_BOT_TOKEN=8883415033:AAHGRlM7oPi3p7H_25w_TQ7ixWRZsCQyIOc
       - JWT_SECRET=super-secret-jwt-key-7133351898
       - JWT_EXPIRES_IN=7d
     ports:

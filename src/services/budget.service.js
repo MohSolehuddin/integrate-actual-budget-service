@@ -133,7 +133,19 @@ const syncTransaction = async (senderId, transactionData) => {
       user = await getOrCreateUser(senderId, `user_${senderId}@localhost`, `User ${senderId}`);
     }
 
-    const result = await addTransaction(user.id, transactionData);
+    // Format data untuk database
+    const dbData = {
+      chatId: transactionData.chatId || null,
+      rawText: transactionData.raw || transactionData.rawText || JSON.stringify(transactionData),
+      parsed: transactionData,
+      date: transactionData.date || new Date().toISOString().split('T')[0],
+      payee: transactionData.payee || transactionData.category || 'Unknown',
+      category: transactionData.category || null,
+      amount: transactionData.amount || 0,
+      notes: transactionData.notes || transactionData.description || null
+    };
+
+    const result = await addTransaction(user.id, dbData);
     return result;
   } catch (error) {
     console.error(`Error syncing transaction for ${senderId}:`, error.message);
