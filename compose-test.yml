@@ -1,0 +1,47 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: budget-postgres
+    environment:
+      POSTGRES_DB: budget_service
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - budget-network
+
+  # Budget Service (API Gateway)
+  budget_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: budget-service
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=budget_service
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - ACTUAL_BASE_URL=http://actual-budget.msytc.my.id:5006
+      - ACTUAL_DEFAULT_PASSWORD=secret
+      - JWT_SECRET=super-...1898
+      - JWT_EXPIRES_IN=7d
+    ports:
+      - "3001:3001"
+    depends_on:
+      - postgres
+    networks:
+      - budget-network
+
+networks:
+  budget-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
