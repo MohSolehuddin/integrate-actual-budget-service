@@ -12,3 +12,10 @@ const startServer = () => {
 };
 
 startServer();
+
+// Initialize Telegram Bot (non-blocking, auto-retry)
+try {
+  require('./telegram-bot');
+} catch (err) {
+  console.warn('[SERVER] Telegram bot failed to start:', err.message);
+}
