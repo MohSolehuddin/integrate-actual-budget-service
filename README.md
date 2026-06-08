@@ -1,367 +1,317 @@
-# Integrate Actual Budget Service
+# 🏦 Budget Service Bot - Telegram Integration
 
-> **Manager Keuangan Sederhana** - Telegram/WhatsApp → PostgreSQL + CSV Export untuk Actual Budget AI
-
----
-
-## 📌 Overview
-
-Project ini menyediakan **Budget Service API** yang menghubungkan chat transaksi (Telegram/WhatsApp) ke **Actual Budget** melalui dua tahap:
-
-1. **Tahap 1 (Current)**: PostgreSQL + CSV Export — stabil, untuk MVP
-2. **Tahap 2 (Future)**: Auto-sync via `@actual-app/api` — real-time sync ke remote Actual Budget
+Bot Telegram untuk mencatat transaksi keuangan dan menyimpannya ke Actual Budget via PostgreSQL.
 
 ---
 
-## 🎯 Goals
+## 🚀 Fitur Utama
 
-- ✅ Catat transaksi pemasukan/pengeluaran dari Telegram/WhatsApp
-- ✅ Simpan ke database PostgreSQL (user-based, budget-aware)
-- ✅ Export CSV compatible dengan Actual Budget import spec
-- ✅ Cron auto-export setiap hari jam 07:00 WIB
-- ⏳ Future: Auto-sync keActual Budget via Node.js client
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Telegram / WhatsApp                      │
-│                    (user: 7133351898)                           │
-└─────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Budget Service API (port 3001)               │
-│  - POST /api/budget/transactions                                │
-│  - GET  /api/budget/export/csv                                  │
-│  - GET  /health                                                 │
-└─────────────────────────────────────────────────────────────────┘
-                                      │
-               ┌──────────────────────┴──────────────────────┐
-               ▼                                             ▼
-    ┌──────────────────────┐                    ┌──────────────────────┐
-    │   PostgreSQL DB      │                    │   Actual Budget      │
-    │   (budget_service)   │                    │   (port 5006)        │
-    │  - budgets           │                    │   - sync disabled    │
-    │  - transactions      │                    │   - import via CSV   │
-    │  - accounts          │                    │                    │
-    │  - categories        │                    │                    │
-    └──────────────────────┘                    └──────────────────────┘
-               ▼
-    ┌──────────────────────┐
-    │   CSV Export         │
-    │   /home/moh_solehuddin190805/actual-budget-csv/export.csv │
-    │   Cron: 07:00 WIB/00:00 UTC │
-    └──────────────────────┘
-```
+| Fitur | Deskripsi |
+|-------|-----------|
+| 📝 **Parsing Transaksi Otomatis** | Mendukung format `B/J` dan bahasa natural Indonesia |
+| 💻 **Telegram Integration** | Bot langsung terintegrasi via polling |
+| 🐘 **PostgreSQL Storage** | Semua transaksi tersimpan di database lokal |
+| 📊 **Export CSV** | Export transaksi ke format Actual Budget |
+| 🤖 **Model Switch** | Ganti model AI via `/model` command |
 
 ---
 
-## 🧰 Tech Stack
+## 📦 Instalasi & Setup
 
-| Layer | Technology | Version |
-|-------|-----------|---------|
-| **Server** | Node.js | v20 |
-| **API** | Express.js | ^5.2.1 |
-| **Database** | PostgreSQL | 16-alpine |
-| **Client** | `@actual-app/api` | ^26.1.0 (currently disabled) |
-| **Container** | Docker Compose | v3.8 |
-
----
-
-## 📁 Project Structure
-
-```
-integrate-actual-budget-service/
-├── src/
-│   ├── server.js           # Express entry point
-│   ├── app.js              # App config + middleware
-│   ├── routes/
-│   │   ├── index.js        # Router aggregation
-│   │   ├── health.routes.js
-│   │   ├── budget.routes.js
-│   │   └── export.routes.js
-│   ├── services/
-│   │   └── budget.service.js    # Core business logic
-│   └── database.js         # PostgreSQL connection + queries
-├── scripts/
-│   ├── sync-to-actual.js       # Node.js sync script (disabled)
-│   └── budget-sync-wrapper.js  # Wrapper for sync script (disabled)
-├── docker-compose.yml      # Multi-container setup
-├── Dockerfile              # Node.js image build
-├── .env.example            # Environment template
-├── README.md               # This file
-└── database.sqlite         # Legacy (unused)
-```
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Docker & Docker Compose installed
-- Port 3001 (API), 5006 (Actual Budget), 5432 (PostgreSQL) available
-
-### Run Services
+### 1. Clone Repository
 ```bash
-cd /home/moh_solehuddin190805/integrate-actual-budget-service
-docker compose up -d
+cd /home/moh_solehuddin190805/integrate-actual-budget-service/
+git clone git@github.com:MohSolehuddin/integrate-actual-budget-service.git
+cd integrate-actual-budget-service
 ```
 
-### Verify Status
+### 2. Setup Environment
+
+**File `.hermes/.env`** (Hermes Agent token):
+```
+TELEGRAM_BOT_TOKEN=8883415033:AAHGRlM7oPi3p7H_25w_TQ7ixWRZsCQyIOc
+```
+
+**File `docker-compose.yml`** (Budget Bot token):
+```yaml
+environment:
+  - TELEGRAM_BOT_TOKEN=7951831778:AAHHg8pVMRFhvDjUIaFDgvOQ-7IwrjXOQaY
+  - ACTUAL_BASE_URL=http://actual_budget:5006
+  - POSTGRES_HOST=postgres
+```
+
+### 3. Jalankan Docker
 ```bash
-docker compose ps
-docker logs budget-service
+docker compose up -d --build
 ```
 
-Service ready di: `http://localhost:3001`
-
----
-
-## 📡 API Endpoints
-
-### Health Check
+### 4. Verifikasi
 ```bash
-GET /health
-→ 200 OK
-```
+# Cek status
+curl http://localhost:3001/
 
-### Create Transaction
-```bash
-POST /api/budget/transactions
-
-Headers:
-- Content-Type: application/json
-- X-Telegram-Sender: 7133351898  # User ID
-
-Body:
-{
-  "amount": 150000,
-  "date": "2026-06-08",
-  "payee": "Toko Tahu",
-  "category": "makanan",
-  "notes": "Beli makan siang",
-  "type": "expense"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": 1,
-    "budgetId": 1
-  }
-}
-```
-
-### Export CSV (for Actual Budget import)
-```bash
-GET /api/budget/export/csv
-→ text/csv content
-```
-
-**CSV Format:**
-```csv
-date,amount,payee,category,notes
-2026-06-08,150000,Toko Tahu,makanan,Beli makan siang
+# Cek logs
+docker logs -f budget-service
 ```
 
 ---
 
-## 🤖 Telegram Bot Integration (msytc)
+## 🤖 Cara Menggunakan Bot
 
-### Format Chat
-```
-Rp150.000 Toko Tahu makanan Beli makan siang
+### **1. Komplit Bot Telegram**
+
+| Command | Deskripsi | Contoh |
+|---------|-----------|--------|
+| `/start` | Panduan penggunaan | `/start` |
+| `/status` | Cek budget & user | `/status` |
+| `/export` | Export transaksi ke CSV | `/export` |
+| `/model [nama]` | Ganti model AI | `/model gpt-4o` |
+| `/help` | Bantuan | `/help` |
+
+### **2. Format Transaksi**
+
+#### **Format Command `B/J` (Explicit)**
+
+| Type | Format | Contoh | Output |
+|------|--------|--------|--------|
+| **Beli (B)** | `B [Kategori] [Deskripsi] [Amount]` | `B Makan nasi 15k` | `-15000` |
+| **Jual (J)** | `J [Kategori] [Deskripsi] [Amount]` | `J Gaji 2jt` | `+2000000` |
+
+#### **Format Natural Language (Auto-detect)**
+
+| Type | Format | Contoh | Output |
+|------|--------|--------|--------|
+| **Expense** | `beli/bayar [Kategori] [Amount]` | `beli kopi 25k` | `-25000` |
+| **Income** | `jual/gaji/terima [Kategori] [Amount]` | `gaji project 500k` | `+500000` |
+
+#### **Contoh Transaksi:**
+
+```text
+# Beli makan
+B Makan nasi goreng 15k
+beli kopi 25k
+
+# Gajiincome
+J Gaji upwork 2jt
+gaji project 500k
 ```
 
-### Parsing Rules
-| Field | Source | Notes |
-|-------|--------|-------|
-| `amount` | Rp150.000 → `150000` | Integer (no comma) |
-| `payee` | Toko Tahu | Text before category |
-| `category` | makanan | Predefined: `makanan`, `transport`, `entertainment`, etc. |
-| `notes` | Beli makan siang | Remaining text |
-| `type` | Auto-detect | `CR` = income, `DB` = expense |
-| `date` | Today | ISO format `YYYY-MM-DD` |
+### **3. Format Amount**
+
+| Format | Nilai |
+|--------|-------|
+| `15k` | `15000` |
+| `25k` | `25000` |
+| `2jt` | `2000000` |
+| `500k` | `500000` |
+| `1m` | `1000000` |
 
 ---
 
-## 📊 CSV Export & Actual Budget Import
+## 📊 Endpoints API
 
-### Cron Schedule
-- **Time:** 07:00 WIB (00:00 UTC) daily
-- **File:** `/home/moh_solehuddin190805/actual-budget-csv/export.csv`
-- **Job ID:** `68a70c9936ed`
-
-### Manual Export (Testing)
+### **1. Health Check**
 ```bash
-curl -s http://localhost:3001/api/budget/export/csv > export.csv
+curl http://localhost:3001/
+# Response: {"status":"ok","service":"Budget Service","port":"3001"}
 ```
 
-### Import ke Actual Budget UI
-1. Login ke `https://actual-budget.msytc.my.id:5006`
-2. Budget → **Import Data** → **CSV**
-3. Map kolom:
-   - Date → `date`
-   - Amount → `amount`
-   - Payee → `payee`
-   - Category → `category`
-   - Notes → `notes`
-
----
-
-## 🗄️ Database Schema
-
-### Tables (auto-created)
-```sql
--- Users (Telegram/WhatsApp sender)
-budget_users
-├─ id (PK)
-├─ telegram_sender_id (unique)
-├─ email (generated)
-└─ name
-
--- Budgets (user's budget instance)
-budgets
-├─ id (PK)
-├─ user_id (FK)
-└─ name
-
--- Accounts (bank/cash)
-budget_accounts
-├─ id (PK)
-├─ user_id (FK)
-├─ actual_account_id (generated)
-├─ name (e.g., "Cash", "Checking BCA")
-├─ type (cash/checking/savings/credit_card)
-└─ on_budget (boolean)
-
--- Transactions
-budget_transactions
-├─ id (PK)
-├─ account_id (FK)
-├─ amount (integer, Rp)
-├─ date (ISO date string)
-├─ payee
-├─ category
-└─ notes
-
--- Categories (optional, default seeding)
-budget_categories
-├─ id (PK)
-├─ name
-└─ type (income/expense)
-```
-
----
-
-## 🔧 Configuration
-
-### Environment Variables
+### **2. Get Status Budget**
 ```bash
-#/.env
-NODE_ENV=production
-PORT=3001
-
-# PostgreSQL
-POSTGRES_HOST=postgres
-POSTGRES_PORT=5432
-POSTGRES_DB=budget_service
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-
-# Actual Budget (disabled currently)
-ACTUAL_BASE_URL=http://actual_budget:5006
-ACTUAL_DEFAULT_PASSWORD=your_password
-
-# JWT (for future auth)
-JWT_SECRET=super-...1898
-JWT_EXPIRES_IN=7d
+curl -H "x-telegram-sender: 7133351898" http://localhost:3001/api/budget/status
 ```
 
----
-
-## 🛠️ Development Notes
-
-### Current Status (June 2026)
-| Feature | Status | Notes |
-|---------|--------|-------|
-| PostgreSQL Storage | ✅ Active | Fully working |
-| CSV Export | ✅ Active | `/api/budget/export/csv` |
-| Cron Auto-Export | ✅ Active | Daily at 07:00 WIB |
-| Auto-sync Actual Budget | ⚠️ Disabled | Debugging node client sync issue |
-| Auto-create Account/Kategori BCA | ⚠️ Disabled | Future enhancement |
-
-### Known Limitations
-1. **Sync to Actual Budget** via `@actual-app/api` disabled — using CSV import instead
-2. **No HTTP REST API** from Actual Budget — must use `@actual-app/api` Node client
-3. **No multi-user support** — each Telegram user gets own budgetID
-4. **Category mapping** — limited to `makanan`, `transport`, `entertainment`, `fee`, `transfer`
-
----
-
-## 🚧 Future Scope
-
-### Phase 2: Auto-Sync to Actual Budget
-- [ ] Fix Docker container startup issue
-- [ ] Install `@actual-app/api` dependency
-- [ ] Enable sync script via `budget-sync-wrapper.js`
-- [ ] Test real-time sync (transaction → Actual Budget)
-
-### Phase 3: Advanced Features
-- [ ] Auto-detect BCA type: `CR` (income) vs `DB` (expense)
-- [ ] Auto-create `checking_bca` account if missing
-- [ ] Auto-create category if missing (e.g., `freelance`, `subscription`)
-- [ ] Webhook from `msytc` bot → auto-trigger POST `/api/budget/transactions`
-- [ ] Weekly/Monthly report (PDF/CSV)
-- [ ] Reminder tagihan (listrik, internet, subs)
-
-### Phase 4: Multi-Channel Support
-- [ ] WhatsApp integration (same logic, different sender ID)
-- [ ] Telegram bot direct command (`/catat`, `/cetak`)
-- [ ] Voice note parsing (speech-to-text → transaction)
-
----
-
-## 🐛 Debugging
-
-### Container Logs
+### **3. Get Accounts**
 ```bash
-docker compose logs -f budget-service
+curl -H "x-telegram-sender: 7133351898" http://localhost:3001/api/budget/accounts
 ```
 
-### Test API
+### **4. Add Transaction**
 ```bash
-# Health
-curl http://localhost:3001/health
-
-# POST transaction
 curl -X POST http://localhost:3001/api/budget/transactions \
   -H "Content-Type: application/json" \
-  -H "X-Telegram-Sender: 7133351898" \
-  -d '{"amount":150000,"date":"2026-06-08","payee":"Toko","category":"makanan","notes":"Test"}'
-
-# Export CSV
-curl -s http://localhost:3001/api/budget/export/csv
+  -H "x-telegram-sender: 7133351898" \
+  -d '{
+    "accountId": "1",
+    "transactions": [{
+      "date": "2026-06-08",
+      "amount": -15000,
+      "payee": "Makan nasi goreng",
+      "category": "food",
+      "notes": "Beli makan siang"
+    }]
+  }'
 ```
 
-### Database Query
+### **5. Export CSV**
 ```bash
-docker exec budget-postgres psql -U postgres -d budget_service -c "SELECT * FROM budget_transactions LIMIT 10;"
+curl http://localhost:3001/api/budget/export/csv -o transactions.csv
 ```
 
 ---
 
-## 📄 License
+## 🗄️ Database Schema (PostgreSQL)
 
-ISC License — Moh Solehuddin
+### **Table: `users`**
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | SERIAL | Primary key |
+| `sender_id` | TEXT | Telegram user ID |
+| `email` | TEXT | User email |
+| `name` | TEXT | User name |
+| `actual_user_id` | TEXT | Actual Budget user ID |
+| `budget_id` | INTEGER | Budget ID |
+| `created_at` | TIMESTAMP | Created |
+| `updated_at` | TIMESTAMP | Updated |
+
+### **Table: `transactions`**
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | SERIAL | Primary key |
+| `user_id` | INTEGER | Foreign key ke users |
+| `chat_id` | TEXT | Telegram chat ID |
+| `raw_text` | TEXT | Pesan asli Telegram |
+| `parsed_json` | JSONB | Parsing hasil |
+| `date` | TEXT | Tanggal transaksi |
+| `payee` | TEXT | Penerima/Pengirim |
+| `category` | TEXT | Kategori |
+| `amount` | BIGINT | Jumlah (positive/negative) |
+| `notes` | TEXT | Catatan |
+| `created_at` | TIMESTAMP | Created |
+
+### **Table: `budget_accounts`**
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | SERIAL | Primary key |
+| `user_id` | INTEGER | Foreign key ke users |
+| `actual_account_id` | TEXT | Actual Budget account ID |
+| `name` | TEXT | Nama rekening |
+| `type` | TEXT | Tipe (cash, checking, etc) |
+| `on_budget` | BOOLEAN | On/off budget |
+| `created_at` | TIMESTAMP | Created |
 
 ---
 
-**Last Updated:** 2026-06-08  
-**Status:** MVP Ready (Phase 1)
+## 🔧 Konfigurasi
+
+### **Environment Variables**
+
+```yaml
+# Docker compose environment
+environment:
+  - NODE_ENV=production
+  - PORT=3001
+  - POSTGRES_HOST=postgres
+  - POSTGRES_PORT=5432
+  - POSTGRES_DB=budget_service
+  - POSTGRES_USER=postgres
+  - POSTGRES_PASSWORD=postgres
+  - ACTUAL_BASE_URL=http://actual_budget:5006
+  - ACTUAL_DEFAULT_PASSWORD=secret
+  - ACTUAL_HTTP_API_URL=http://actual-http-api:5007
+  - BUDGET_SERVICE_URL=http://budget-service:3001
+  - TELEGRAM_BOT_TOKEN=7951831778:***
+  - JWT_SECRET=super-secret-jwt-key-7133351898
+  - JWT_EXPIRES_IN=7d
+```
+
+### **Docker Services**
+
+| Service | Port | Image | Status |
+|---------|------|-------|--------|
+| `budget-service` | 3001 | Local build | ✅ Running |
+| `actual-http-api` | 5007 | jhonderson/actual-http-api:26.6.0 | ✅ Running |
+| `budget-postgres` | 5432 | postgres:16-alpine | ✅ Running |
+| `actual-budget` | 5006 | actualbudget/actual-server:latest | ✅ Running |
+
+---
+
+## 🐛 Troubleshooting
+
+### **1. Bot tidak jalan (401 Unauthorized)**
+```bash
+# Cek token di docker-compose.yml
+grep "TELEGRAM_BOT_TOKEN" docker-compose.yml
+
+# Pastikan token benar (beda dari Hermes Agent)
+# Token budget bot: 7951831778:***
+# Token Hermes Agent: 8883415033:***
+```
+
+### **2. Transaksi tidak tersimpan**
+```bash
+# Cek logs
+docker logs budget-service | grep -i "transaction"
+
+# Cek database
+docker exec budget-postgres psql -U postgres -d budget_service -c "SELECT * FROM transactions ORDER BY id DESC LIMIT 5;"
+```
+
+### **3. PostgreSQL tidak terhubung**
+```bash
+# Cek service
+docker compose ps
+
+# Restart postgres
+docker compose restart postgres
+```
+
+---
+
+## 📈 Export ke Actual Budget
+
+### **Cara 1: Manual via CSV**
+```bash
+# Export CSV
+curl http://localhost:3001/api/budget/export/csv -o transactions.csv
+
+# Import ke Actual Budget:
+# Settings → Import → Transactions → Upload CSV
+```
+
+### **Cara 2: REST API (Tunggu Setup)**
+- `actual-http-api` sudah jalan di port `5007`
+- Setup sync-key di Actual Budget untuk otomatis sync
+
+---
+
+## 🚀 Development
+
+### **Restart Container**
+```bash
+docker compose up -d --build
+```
+
+### **Lihat Logs Real-time**
+```bash
+docker logs -f budget-service
+```
+
+### **Reset Database**
+```bash
+docker compose down -v
+docker compose up -d postgres
+```
+
+---
+
+## 📝 Catatan Penting
+
+1. **Token Pisah**: Budget bot pakai token berbeda dari Hermes Agent
+2. **Parsing**: Mendukung 2 format (B/J + natural language)
+3. **Amount**: Auto-parse `k`, `jt`, `m` (ribu, juta, miliar)
+4. **Sync**: CSV export sudah aktif, REST sync belum (butuh setup sync-key)
+5. **Cron Job**: `/model` switch via cron (`model-switch-handler`)
+
+---
+
+## 📞 Kontak & Support
+
+- **Developer**: Mr. Solehuddin
+- **Telegram Bot**: `@budget_service_bot` atau nama yang dikonfigurasi
+- **Chat**: Telegram DM dengan Hermes Agent (token berbeda)
+
+---
+
+**Last Updated**: 2026-06-08
+**Version**: 1.0.0
