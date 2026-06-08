@@ -55,6 +55,21 @@ services:
     networks:
       - budget-network
 
+  # Actual Budget HTTP API Wrapper
+  actual_http_api:
+    image: jhonderson/actual-http-api:26.6.0
+    container_name: actual-http-api
+    env_file:
+      - .env.actual-http-api
+    ports:
+      - "5007:5007"
+    environment:
+      - NODE_ENV=production
+      - PORT=5007
+    networks:
+      - budget-network
+    restart: unless-stopped
+
 networks:
   budget-network:
     driver: bridge
