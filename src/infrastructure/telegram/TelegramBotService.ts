@@ -1,6 +1,7 @@
 import { Telegraf, Context, Markup, SessionState } from 'telegraf';
 import type { IActualBudgetService } from '../actual-budget/ActualBudgetService';
 import type { AddTransactionUseCase } from '../../use-cases/budget/AddTransactionUseCase';
+import type { TransactionInput } from '../../domain/entities/Transaction';
 
 // Transaction parser
 const parseTransaction = (text: string): { payee: string; amount: number; category: string } | null => {
