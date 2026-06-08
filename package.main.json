@@ -21,7 +21,6 @@
     "bcrypt": "^6.0.0",
     "fastify": "^5.8.5",
     "sequelize": "^6.37.8",
-    "sqlite3": "^5.1.7",
-    "telegraf": "^4.16.3"
+    "sqlite3": "^5.1.7"
   }
 }

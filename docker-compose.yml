@@ -1,67 +1,82 @@
+version: '3.8'
+
 services:
-  # ─────────────────────────────────────────────
-  # Actual Budget Server
-  # ─────────────────────────────────────────────
-  actual-server:
-    image: actualbudget/actual-server:latest
-    container_name: actual-server
-    restart: unless-stopped
-    ports:
-      - "${ACTUAL_PORT:-5006}:5006"
-    volumes:
-      - actual-data:/data
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: budget-postgres
     environment:
-      - ACTUAL_DATA_DIR=/data
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5006/"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 15s
+      POSTGRES_DB: budget_service
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - budget-network
 
-  # ─────────────────────────────────────────────
-  # Integration Service (this app)
-  # ─────────────────────────────────────────────
-  integration-service:
+  # Actual Budget
+  actual_budget:
+    image: actualbudget/actual-server:latest
+    container_name: actual-budget
+    environment:
+      - PORT=5006
+    ports:
+      - "5006:5006"
+    volumes:
+      - actual_budget_data:/data
+    networks:
+      - budget-network
+
+  # Budget Service (API Gateway)
+  budget_service:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: budget-integration-service
-    restart: unless-stopped
-    ports:
-      - "${PORT:-3001}:3001"
-    env_file:
-      - .env
+    container_name: budget-service
     environment:
-      # Override to point at the docker service name, not external IP
-      - ACTUAL_SERVER_URL=http://actual-server:5006
-      - ACTUAL_DATA_DIR=/app/budget-data
-      - HOST=0.0.0.0
-    volumes:
-      - integration-db:/app/database
-      - integration-budget-data:/app/budget-data
+      - NODE_ENV=production
+      - PORT=3001
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=budget_service
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - ACTUAL_BASE_URL=http://actual_budget:5006
+      - ACTUAL_DEFAULT_PASSWORD=secret
+      - ACTUAL_HTTP_API_URL=http://actual-http-api:5007
+      - BUDGET_SERVICE_URL=http://budget-service:3001
+      - TELEGRAM_BOT_TOKEN=7951831778:AAHHg8pVMRFhvDjUIaFDgvOQ-7IwrjXOQaY
+      - JWT_SECRET=super-secret-jwt-key-7133351898
+      - JWT_EXPIRES_IN=7d
+    ports:
+      - "3001:3001"
     depends_on:
-      actual-server:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 10s
+      - postgres
+      - actual_budget
     networks:
       - budget-network
 
-volumes:
-  actual-data:
-    driver: local
-  integration-db:
-    driver: local
-  integration-budget-data:
-    driver: local
+  # Actual Budget HTTP API Wrapper
+  actual_http_api:
+    image: jhonderson/actual-http-api:26.6.0
+    container_name: actual-http-api
+    env_file:
+      - .env.actual-http-api
+    ports:
+      - "5007:5007"
+    environment:
+      - NODE_ENV=production
+      - PORT=5007
+    networks:
+      - budget-network
+    restart: unless-stopped
 
 networks:
   budget-network:
     driver: bridge
+
+volumes:
+  postgres_data:
+  actual_budget_data:
