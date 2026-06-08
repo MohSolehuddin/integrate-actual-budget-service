@@ -47,7 +47,7 @@ services:
       - ACTUAL_DEFAULT_PASSWORD=secret
       - ACTUAL_HTTP_API_URL=http://actual-http-api:5007
       - BUDGET_SERVICE_URL=http://budget-service:3001
-      - TELEGRAM_BOT_TOKEN=8883415033:AAHGRlM7oPi3p7H_25w_TQ7ixWRZsCQyIOc
+      - TELEGRAM_BOT_TOKEN=7951831778:AAHHg8pVMRFhvDjUIaFDgvOQ-7IwrjXOQaY
       - JWT_SECRET=super-secret-jwt-key-7133351898
       - JWT_EXPIRES_IN=7d
     ports:
