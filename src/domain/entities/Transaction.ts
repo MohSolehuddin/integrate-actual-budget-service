@@ -40,4 +40,8 @@ export interface ImportTransactionsResult {
   added: number;
   /** Number of existing transactions updated */
   updated: number;
+  /** Number of transactions skipped (duplicates) */
+  skipped?: number;
+  /** Any errors that occurred */
+  errors?: string[];
 }

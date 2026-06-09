@@ -18,6 +18,17 @@ export class LoginUseCase {
       throw new AuthError('Invalid credentials');
     }
 
+    // Debug log
+    console.log('LoginUseCase execute', { 
+      username, 
+      passwordType: typeof password, 
+      passwordLength: password.length,
+      password: password,
+      userPassword: user.password,
+      userPasswordType: typeof user.password,
+      userPasswordLength: user.password?.length
+    });
+
     // Using argon2 to verify
     const isPasswordValid = await argon2.verify(user.password || '', password);
 

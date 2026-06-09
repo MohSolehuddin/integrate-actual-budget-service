@@ -5,9 +5,13 @@ import { UserModel } from "../models/UserModel";
 export class UserRepository implements IUserRepository {
   async findByUsername(username: string): Promise<User | null> {
     const userModel = await UserModel.findOne({ where: { username } });
+    console.log('UserRepository.findByUsername', { username, userModel });
     if (!userModel) return null;
 
-    return new User(userModel.id!, userModel.username, userModel.role, userModel.password);
+    // Get password from dataValues directly
+    const password = (userModel as any).dataValues?.password || (userModel as any).password;
+    console.log('UserRepository password from dataValues', password);
+    return new User(userModel.id!, userModel.username, userModel.role, password);
   }
 
   async create(user: User): Promise<User> {
