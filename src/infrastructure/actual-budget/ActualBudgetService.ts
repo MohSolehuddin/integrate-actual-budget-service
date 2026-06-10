@@ -7,13 +7,15 @@ export class ActualBudgetService implements IActualBudgetService {
   private password?: string;
   private syncId: string;
   private dataDir: string;
+  private e2eePassword?: string;
   private isInitialized = false;
 
-  constructor(serverUrl: string, password: string | undefined, syncId: string, dataDir: string = './budget-data') {
+  constructor(serverUrl: string, password: string | undefined, syncId: string, dataDir: string = './budget-data', e2eePassword?: string) {
     this.serverUrl = serverUrl;
     this.password = password;
     this.syncId = syncId;
     this.dataDir = dataDir;
+    this.e2eePassword = e2eePassword;
   }
 
   async init(): Promise<void> {
@@ -37,7 +39,11 @@ export class ActualBudgetService implements IActualBudgetService {
 
   async downloadBudget(): Promise<void> {
     this.ensureInitialized();
-    await api.downloadBudget(this.syncId);
+    const options: Record<string, unknown> = {};
+    if (this.e2eePassword) {
+      options.password = this.e2eePassword;
+    }
+    await api.downloadBudget(this.syncId, options);
   }
 
   async getAccounts(): Promise<Account[]> {

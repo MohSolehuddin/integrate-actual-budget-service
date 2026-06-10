@@ -194,9 +194,16 @@ export class TelegramBotService {
       }
 
       try {
-        // Simpan langsung ke Actual Budget
-        const defaultAccountId = '1'; // Default account, bisa diatur nanti
-        await this.addTransactionUseCase.execute(defaultAccountId, [
+        // Ambil akun pertama dari Actual Budget untuk target
+        const accounts = await this.actualBudgetService.getAccounts();
+        const liveAccounts = accounts.filter(a => !a.closed && !a.offbudget);
+        const targetAccount = liveAccounts[0] || accounts[0];
+        if (!targetAccount) {
+          await ctx.reply('❌ Tidak ada akun ditemukan di Actual Budget. Pastikan budget sudah di-download.');
+          return;
+        }
+        const targetAccountId = targetAccount.id;
+        await this.addTransactionUseCase.execute(targetAccountId, [
           {
             date: new Date().toISOString().split('T')[0] || new Date().toISOString().slice(0, 10),
             amount: transaction.amount,

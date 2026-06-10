@@ -41,9 +41,9 @@ services:
       - POSTGRES_DB=budget_service
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - ACTUAL_BASE_URL=http://actual_budget:5006
-      - ACTUAL_DEFAULT_PASSWORD=secret
-      - ACTUAL_HTTP_API_URL=http://actual-http-api:5007
+      - ACTUAL_SERVER_URL=http://actual_budget:5006
+      - ACTUAL_PASSWORD=secret
+      - ACTUAL_SYNC_ID=your-budget-sync-id
       - BUDGET_SERVICE_URL=http://budget-service:3001
       - TELEGRAM_BOT_TOKEN=7951831778:AAHHg8pVMRFhvDjUIaFDgvOQ-7IwrjXOQaY
       - JWT_SECRET=super-secret-jwt-key-7133351898

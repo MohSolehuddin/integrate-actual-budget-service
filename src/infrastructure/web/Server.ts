@@ -24,14 +24,16 @@ export async function createServer() {
   });
 
   // ─── Initialize Actual Budget Service ───
-  const actualServerUrl = process.env.ACTUAL_SERVER_URL || '';
+  // Support both ACTUAL_SERVER_URL and ACTUAL_BASE_URL (docker-compose uses the latter)
+  const actualServerUrl = process.env.ACTUAL_SERVER_URL || process.env.ACTUAL_BASE_URL || '';
   const actualPassword = process.env.ACTUAL_PASSWORD;
   const actualSyncId = process.env.ACTUAL_SYNC_ID || '';
   const dataDir = process.env.ACTUAL_DATA_DIR || './budget-data';
+  const e2eePassword = process.env.ACTUAL_E2EE_PASSWORD || undefined;
 
   let actualBudgetService: ActualBudgetService | MockBudgetService;
   if (actualServerUrl && actualSyncId) {
-    actualBudgetService = new ActualBudgetService(actualServerUrl, actualPassword, actualSyncId, dataDir);
+    actualBudgetService = new ActualBudgetService(actualServerUrl, actualPassword, actualSyncId, dataDir, e2eePassword);
     try {
       server.log.info('Initializing Actual Budget...');
       await actualBudgetService.init();
