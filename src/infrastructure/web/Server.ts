@@ -6,8 +6,11 @@ import { ActualBudgetService } from '../actual-budget/ActualBudgetService';
 import { MockBudgetService } from '../actual-budget/MockBudgetService';
 import { createPostgresPool, initPostgresTables } from '../database/postgres';
 import { BudgetRepository } from '../database/postgres/repositories/BudgetRepository';
+import { PgUserRepository } from '../database/postgres/repositories/PgUserRepository';
 import { BudgetService } from '../../application/services/BudgetService';
-import { TelegramBotService } from '../telegram/TelegramBotService';
+import { TelegramBotService } from '../../interfaces/telegram/TelegramBotService';
+import { AddTransactionUseCase } from '../../use-cases/budget/AddTransactionUseCase';
+import { User } from '../../domain/entities/User';
 
 export async function createServer() {
   const server = Fastify({
@@ -26,7 +29,7 @@ export async function createServer() {
   const actualSyncId = process.env.ACTUAL_SYNC_ID || '';
   const dataDir = process.env.ACTUAL_DATA_DIR || './budget-data';
 
-  let actualBudgetService;
+  let actualBudgetService: ActualBudgetService | MockBudgetService;
   if (actualServerUrl && actualSyncId) {
     actualBudgetService = new ActualBudgetService(actualServerUrl, actualPassword, actualSyncId, dataDir);
     try {
@@ -35,7 +38,7 @@ export async function createServer() {
       await actualBudgetService.downloadBudget();
       server.log.info('Actual Budget initialized successfully.');
     } catch (error) {
-      server.log.error(`Failed to initialize Actual Budget ${error}`);
+      server.log.error(`Failed to initialize Actual Budget: ${error}`);
       actualBudgetService = new MockBudgetService();
       server.log.warn('Falling back to MockBudgetService');
     }
@@ -48,53 +51,44 @@ export async function createServer() {
   const pgPool = createPostgresPool();
   const budgetRepo = new BudgetRepository(pgPool);
   const budgetService = new BudgetService(pgPool, budgetRepo);
+  const userRepository = new PgUserRepository(pgPool);
 
   try {
     server.log.info('Initializing PostgreSQL tables...');
     await initPostgresTables(pgPool);
     server.log.info('PostgreSQL tables initialized.');
+
+    // Seed admin user if not exists
+    const adminCount = await userRepository.count();
+    if (adminCount === 0) {
+      server.log.info('Seeding initial admin user...');
+      const hashedPassword = await argon2.hash('secret');
+      await userRepository.create(new User('', 'admin', 'admin', hashedPassword));
+      server.log.info('Admin user seeded with username "admin" and password "secret".');
+    }
   } catch (error) {
     server.log.error(`Failed to initialize PostgreSQL: ${error}`);
   }
 
-  // ─── Initialize SQLite/Sequelize (existing auth) ───
-  const { sequelize } = await import('../database/sequelize');
-  const { UserModel } = await import('../database/sequelize/models/UserModel');
-
-  try {
-    server.log.info('Syncing SQLite Database...');
-    await sequelize.sync();
-    server.log.info('SQLite Database synced successfully.');
-
-    const adminCount = await UserModel.count({ where: { username: 'admin' } });
-    if (adminCount === 0) {
-      server.log.info('Seeding initial admin user...');
-      const hashedPassword = await argon2.hash('secret');
-      await UserModel.create({
-        username: 'admin',
-        password: hashedPassword,
-        role: 'admin',
-      });
-      server.log.info('Admin user seeded with username "admin" and password "secret".');
-    }
-  } catch (error) {
-    server.log.error(`Failed to sync SQLite database ${error}`);
-  }
-
   // ─── Setup HTTP Routes ───
-  await setupRoutes(server, actualBudgetService, budgetService);
+  await setupRoutes(server, actualBudgetService, budgetService, userRepository, pgPool);
 
   // ─── Initialize Telegram Bot (non-blocking) ───
-  const telegramBot = new TelegramBotService(pgPool);
-  telegramBot.initialize().catch((err) => {
-    server.log.warn(`Telegram Bot failed to initialize: ${err.message}`);
-  });
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (token) {
+    const addTransactionUseCase = new AddTransactionUseCase(actualBudgetService);
+    const telegramBot = new TelegramBotService(token, actualBudgetService, addTransactionUseCase);
+    telegramBot.setup();
+    telegramBot.startPolling();
+    server.log.info('Telegram Bot started');
+  } else {
+    server.log.warn('TELEGRAM_BOT_TOKEN not set. Skipping Telegram bot.');
+  }
 
   // ─── Graceful shutdown ───
   server.addHook('onClose', async () => {
-    server.log.info('Shutting down Actual Budget...');
+    server.log.info('Shutting down...');
     await actualBudgetService.shutdown();
-    server.log.info('Closing PostgreSQL pool...');
     await pgPool.end();
   });
 

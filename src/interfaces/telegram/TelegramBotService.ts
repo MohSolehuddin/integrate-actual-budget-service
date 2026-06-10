@@ -1,33 +1,43 @@
 /**
- * Telegram Bot Service untuk Budget Service
- * Memproses pesan Telegram, parsing transaksi, dan integrasi dengan Actual Budget
+ * Telegram Bot Service — Telegraf-based
+ * Langsung terintegrasi dengan Actual Budget via AddTransactionUseCase
+ * Tidak ada self-HTPP-call (axios ke diri sendiri)
  */
 
-import { Telegraf, Context, Markup } from 'telegraf';
-import type { NextFunction } from 'telegraf';
+import { Telegraf, Context } from 'telegraf';
 import { AddTransactionUseCase } from '../../use-cases/budget/AddTransactionUseCase';
-import { IActualBudgetService } from '../../domain/interfaces/IActualBudgetService';
-import { BotCommand } from '@telegraf/types';
+import type { IActualBudgetService } from '../../domain/interfaces/IActualBudgetService';
 
 // Regex patterns untuk parsing transaksi
 const CMD_PATTERN = /^([BJ])\s+(\S+)(?:\s+(.*?))?\s+(\d+(?:\.\d+)?[kKmMjJtTrRbB]*)\s*$/i;
 const NATURAL_PATTERN = /^(?:beli|bayar|b)\s+(\S+)(?:\s+(.*?))?\s+(\d+(?:\.\d+)?[kKmMjJtTrRbB]*)\s*$/i;
 const INCOME_PATTERN = /^(?:jual|j|terima|gaji|deposit)\s+(\S+)(?:\s+(.*?))?\s+(\d+(?:\.\d+)?[kKmMjJtTrRbB]*)\s*$/i;
 
+export interface ParsedTransaction {
+  type: 'expense' | 'income';
+  category: string;
+  description: string;
+  amount: number;
+  raw: string;
+}
+
 export class TelegramBotService {
-  private bot: Telegraf<Context>;
+  private bot: Telegraf;
   private addTransactionUseCase: AddTransactionUseCase;
+  private actualBudgetService: IActualBudgetService;
 
   constructor(
     botToken: string,
-    actualBudgetService: IActualBudgetService
+    actualBudgetService: IActualBudgetService,
+    addTransactionUseCase: AddTransactionUseCase
   ) {
-    this.bot = new Telegraf<Context>(botToken);
-    this.addTransactionUseCase = new AddTransactionUseCase(actualBudgetService);
+    this.bot = new Telegraf(botToken);
+    this.actualBudgetService = actualBudgetService;
+    this.addTransactionUseCase = addTransactionUseCase;
   }
 
   /**
-   * Parse nominal amount dengan format k, jt, m, dll
+   * Parse nominal amount dengan format k, jt, m, rb
    */
   private parseAmount(amountStr: string): number | null {
     const lower = amountStr.toLowerCase().trim();
@@ -53,55 +63,38 @@ export class TelegramBotService {
   /**
    * Detect transaksi dari teks pesan
    */
-  private detectTransaction(text: string): {
-    type: 'income' | 'expense';
-    category: string;
-    description: string;
-    amount: number;
-    raw: string;
-  } | null {
+  private detectTransaction(text: string): ParsedTransaction | null {
     text = text.trim();
 
     // Command format: B Makan nasi 15k
     let match = text.match(CMD_PATTERN);
-    if (match) {
+    if (match?.[1] && match[2] && match[4]) {
       const amount = this.parseAmount(match[4]);
       if (!amount) return null;
+      const isExpense = match[1].toUpperCase() === 'B';
       return {
-        type: match[1].toUpperCase() === 'B' ? 'expense' : 'income',
+        type: isExpense ? 'expense' : 'income',
         category: match[2],
         description: match[3] || '',
-        amount: match[1].toUpperCase() === 'B' ? -Math.abs(amount) : Math.abs(amount),
+        amount: isExpense ? -Math.abs(amount) : Math.abs(amount),
         raw: text,
       };
     }
 
     // Natural: beli makan nasi 15k
     match = text.match(NATURAL_PATTERN);
-    if (match) {
+    if (match?.[1] && match[3]) {
       const amount = this.parseAmount(match[3]);
       if (!amount) return null;
-      return {
-        type: 'expense',
-        category: match[1],
-        description: match[2] || '',
-        amount: -Math.abs(amount),
-        raw: text,
-      };
+      return { type: 'expense', category: match[1], description: match[2] || '', amount: -Math.abs(amount), raw: text };
     }
 
     // Income natural: gaji project 500k
     match = text.match(INCOME_PATTERN);
-    if (match) {
+    if (match?.[1] && match[3]) {
       const amount = this.parseAmount(match[3]);
       if (!amount) return null;
-      return {
-        type: 'income',
-        category: match[1],
-        description: match[2] || '',
-        amount: Math.abs(amount),
-        raw: text,
-      };
+      return { type: 'income', category: match[1], description: match[2] || '', amount: Math.abs(amount), raw: text };
     }
 
     return null;
@@ -110,18 +103,18 @@ export class TelegramBotService {
   /**
    * Setup all Telegram bot commands and handlers
    */
-  public setup() {
+  public setup(): void {
     // Command: /start
     this.bot.command('start', async (ctx) => {
       await ctx.reply(
         '👋 Halo! Saya Budget Bot.\n\n' +
-        '**Cara catat transaksi:**\n' +
+        '*Cara catat transaksi:*\n' +
         '• `B Makan nasi 15k` — pengeluaran\n' +
         '• `J Gaji project 2jt` — pemasukan\n' +
         '• `beli kopi 25k` — natural language\n\n' +
-        '**Commands:**\n' +
+        '*Commands:*\n' +
         '• `/status` — cek budget\n' +
-        '• `/export` — export CSV\n' +
+        '• `/accounts` — lihat akun\n' +
         '• `/help` — bantuan\n\n' +
         '_format: B = Beli/Pengeluaran, J = Jual/Pemasukan_',
         { parse_mode: 'Markdown' }
@@ -131,37 +124,56 @@ export class TelegramBotService {
     // Command: /status
     this.bot.command('status', async (ctx) => {
       try {
-        const user = await this.addTransactionUseCase.execute(
-          '1', // Default account ID
-          [] // Empty transactions - just to check connection
-        );
+        const accounts = await this.actualBudgetService.getAccounts();
+        const categories = await this.actualBudgetService.getCategories();
         await ctx.reply(
-          `✅ **Budget Status**\n\n` +
-          `Status: ${user.message}\n\n` +
-          `ID: ${ctx.from?.id}\n` +
-          `Username: ${ctx.from?.username || 'N/A'}\n` +
-          `Waktu: ${new Date().toISOString()}`,
+          `✅ *Budget Status*\n\n` +
+          `Akun: ${accounts.length} (${accounts.map(a => a.name).join(', ')})\n` +
+          `Kategori: ${categories.length}\n` +
+          `Status: Terhubung langsung ke Actual Budget\n` +
+          `Waktu: ${new Date().toLocaleString('id-ID')}\n` +
+          `User: ${ctx.from?.first_name || ctx.from?.username || 'N/A'}`,
           { parse_mode: 'Markdown' }
         );
       } catch (error) {
-        await ctx.reply(`❌ Gagal cek status: ${error.message}`);
+        await ctx.reply(`❌ Gagal cek status: ${(error as Error).message}`);
+      }
+    });
+
+    // Command: /accounts
+    this.bot.command('accounts', async (ctx) => {
+      try {
+        const accounts = await this.actualBudgetService.getAccounts();
+        if (accounts.length === 0) {
+          await ctx.reply('📭 Belum ada akun. Pastikan Actual Budget sudah di-setup.');
+          return;
+        }
+        const lines = accounts.map((a, i) =>
+          `${i + 1}. *${a.name}* — ${a.offbudget ? 'off-budget' : 'on-budget'}${a.balance_current != null ? ` (saldo: ${a.balance_current})` : ''}`
+        );
+        await ctx.reply(`📋 *Akun Budget*\n\n${lines.join('\n')}`, { parse_mode: 'Markdown' });
+      } catch (error) {
+        await ctx.reply(`❌ Gagal mengambil akun: ${(error as Error).message}`);
       }
     });
 
     // Command: /help
     this.bot.command('help', async (ctx) => {
       await ctx.reply(
-        '**Budget Bot Commands:**\n\n' +
+        '*Budget Bot Commands:*\n\n' +
         '📝 `/start` — Mulai bot\n' +
         '📊 `/status` — Cek budget status\n' +
-        '📁 `/export` — Export CSV ke Actual Budget\n' +
+        '📁 `/accounts` — Lihat daftar akun\n' +
         '❓ `/help` — Bantuan\n\n' +
-        '**Format transaksi:**\n' +
+        '*Format transaksi:*\n' +
         '• `B Kategori deskripsi jumlah` = Pengeluaran\n' +
         '• `J Kategori deskripsi jumlah` = Pemasukan\n' +
         '• `beli Kategori deskripsi jumlah` = Pengeluaran (natural)\n' +
         '• `gaji Kategori deskripsi jumlah` = Pemasukan (natural)\n\n' +
-        'Contoh: `B Makan nasi goreng 15k`',
+        '*Contoh:*\n' +
+        '`B Makan nasi goreng 15k`\n' +
+        '`J Gaji freelance 2jt`\n' +
+        '`beli kopi 25k`',
         { parse_mode: 'Markdown' }
       );
     });
@@ -182,46 +194,53 @@ export class TelegramBotService {
       }
 
       try {
-        const amountFormatted = Math.abs(transaction.amount).toLocaleString('id-ID');
-        const typeLabel = transaction.type === 'expense' ? '💸 Pengeluaran' : '💰 Pemasukan';
+        // Simpan langsung ke Actual Budget
+        const defaultAccountId = '1'; // Default account, bisa diatur nanti
+        await this.addTransactionUseCase.execute(defaultAccountId, [
+          {
+            date: new Date().toISOString().split('T')[0] || new Date().toISOString().slice(0, 10),
+            amount: transaction.amount,
+            payee_name: transaction.category + (transaction.description ? ' - ' + transaction.description : ''),
+            category: transaction.category,
+            notes: transaction.raw,
+          },
+        ]);
 
-        await ctx.reply(`✅ **Tersimpan!**\n\n${typeLabel}\nKategori: ${transaction.category}\nDetail: ${transaction.description || '-'}\nJumlah: Rp${amountFormatted}`, { parse_mode: 'Markdown' });
+        const amountFormatted = Math.abs(transaction.amount).toLocaleString('id-ID');
+        const typeLabel = transaction.type === 'expense' ? '💸 *Pengeluaran*' : '💰 *Pemasukan*';
+
+        await ctx.reply(
+          `✅ *Tersimpan ke Actual Budget!*\n\n${typeLabel}\n` +
+          `Kategori: ${transaction.category}\n` +
+          `Detail: ${transaction.description || '-'}\n` +
+          `Jumlah: Rp${amountFormatted}`,
+          { parse_mode: 'Markdown' }
+        );
       } catch (error) {
-        await ctx.reply(`❌ Gagal menyimpan: ${error.message}`);
+        console.error('[TELEGRAM BOT] Failed to save transaction:', error);
+        await ctx.reply(`❌ Gagal menyimpan: ${(error as Error).message}`);
       }
     });
 
-    // Error handler
-    this.bot.use(async (ctx, next) => {
-      try {
-        await next();
-      } catch (error) {
-        console.error('Telegram Bot Error:', error);
-        if (ctx.updateType === 'message' && ctx.message?.text) {
-          await ctx.reply('❌ Terjadi kesalahan. Silakan coba lagi.');
-        }
-      }
+    // Global error handler
+    this.bot.catch((err) => {
+      console.error('[TELEGRAM BOT] Unhandled error:', err);
     });
   }
 
   /**
    * Start polling for updates
    */
-  public startPolling() {
-    this.bot.startPolling();
+  public startPolling(): void {
+    this.bot.launch();
     console.log('[TELEGRAM BOT] Polling started');
   }
 
   /**
-   * Get bot info
+   * Stop polling gracefully
    */
-  public async getBotInfo() {
-    try {
-      const me = await this.bot.telegram.getMe();
-      return me;
-    } catch (error) {
-      console.error('[TELEGRAM BOT] Failed to get bot info:', error);
-      return null;
-    }
+  public async stop(): Promise<void> {
+    await this.bot.stop();
+    console.log('[TELEGRAM BOT] Polling stopped');
   }
 }

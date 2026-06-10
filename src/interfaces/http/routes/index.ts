@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { IActualBudgetService } from '../../../domain/interfaces/IActualBudgetService';
+import type { IUserRepository } from '../../../domain/interfaces/IUserRepository';
 import { JwtService } from '../../../infrastructure/security/JwtService';
 import { LoginUseCase } from '../../../use-cases/auth/LoginUseCase';
 import { RegisterUseCase } from '../../../use-cases/auth/RegisterUseCase';
@@ -8,17 +9,18 @@ import { GetCategoriesUseCase } from '../../../use-cases/budget/GetCategoriesUse
 import { AddTransactionUseCase } from '../../../use-cases/budget/AddTransactionUseCase';
 import { AuthController } from '../controllers/AuthController';
 import { BudgetController } from '../controllers/BudgetController';
-import { UserRepository } from '../../../infrastructure/database/sequelize/repositories/UserRepository';
 import type { BudgetService } from '../../../application/services/BudgetService';
+import type { Pool } from 'pg';
 
 export async function setupRoutes(
   server: FastifyInstance,
   actualBudgetService: IActualBudgetService,
-  budgetService: BudgetService
+  budgetService: BudgetService,
+  userRepository: IUserRepository,
+  pgPool: Pool
 ) {
   // Setup dependencies
   const jwtService = new JwtService(server);
-  const userRepository = new UserRepository();
   const loginUseCase = new LoginUseCase(userRepository, jwtService);
   const registerUseCase = new RegisterUseCase(userRepository, jwtService);
   const authController = new AuthController(loginUseCase, registerUseCase);
@@ -28,7 +30,7 @@ export async function setupRoutes(
   const addTransactionUseCase = new AddTransactionUseCase(actualBudgetService);
   const budgetController = new BudgetController(getAccountsUseCase, getCategoriesUseCase, addTransactionUseCase);
 
-  // JWT auth preValidation hook (reusable)
+  // JWT auth preValidation hook
   const authenticate = async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       await request.jwtVerify();
@@ -60,7 +62,7 @@ export async function setupRoutes(
     return { message: 'This is a protected route', user: request.user };
   });
 
-  // ─── Actual Budget API Routes (v1) ───
+  // ─── Actual Budget API Routes (v1 — requires JWT) ───
   server.get('/api/v1/budget/accounts', { preValidation: authenticate }, async (request, reply) => {
     return budgetController.getAccounts(request, reply);
   });
@@ -73,8 +75,7 @@ export async function setupRoutes(
     return budgetController.addTransaction(request, reply);
   });
 
-  // ─── Telegram / External API Routes (no auth required, uses X-Telegram-Sender header) ───
-  
+  // ─── Telegram / External API Routes (X-Telegram-Sender header) ───
   server.get('/api/budget/status', async (req, reply) => {
     try {
       const senderId = (req.headers['x-telegram-sender'] as string) || 'default';

@@ -1,6 +1,6 @@
 import * as api from '@actual-app/api';
 import type { IActualBudgetService } from '../../domain/interfaces/IActualBudgetService';
-import type { TransactionInput, ImportTransactionsResult } from '../../domain/entities/Transaction';
+import type { TransactionInput, ImportTransactionsResult, Account, Category } from '../../domain/entities';
 
 export class ActualBudgetService implements IActualBudgetService {
   private serverUrl: string;
@@ -40,12 +40,12 @@ export class ActualBudgetService implements IActualBudgetService {
     await api.downloadBudget(this.syncId);
   }
 
-  async getAccounts(): Promise<any[]> {
+  async getAccounts(): Promise<Account[]> {
     this.ensureInitialized();
     return await api.getAccounts();
   }
 
-  async getCategories(): Promise<any[]> {
+  async getCategories(): Promise<Category[]> {
     this.ensureInitialized();
     return await api.getCategories();
   }
@@ -57,7 +57,6 @@ export class ActualBudgetService implements IActualBudgetService {
 
   async importTransactions(accountId: string, transactions: TransactionInput[]): Promise<ImportTransactionsResult> {
     this.ensureInitialized();
-    // importTransactions requires `account` field on each transaction
     const transactionsWithAccount = transactions.map(tx => ({ ...tx, account: accountId }));
     const result = await api.importTransactions(accountId, transactionsWithAccount);
     return {

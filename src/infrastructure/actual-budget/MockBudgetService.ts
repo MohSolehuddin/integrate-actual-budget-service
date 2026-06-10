@@ -1,8 +1,16 @@
-import type { TransactionInput, ImportTransactionsResult } from '../../domain/entities/Transaction';
+import type { TransactionInput, ImportTransactionsResult, Account, Category } from '../../domain/entities';
 import type { IActualBudgetService } from '../../domain/interfaces/IActualBudgetService';
 
 export class MockBudgetService implements IActualBudgetService {
-  private transactions: Array<{ id: string; accountId: string; date: string; amount: number; payee?: string | null; category?: string | null; notes?: string | null }> = [];
+  private transactions: Array<{
+    id: string;
+    accountId: string;
+    date: string;
+    amount: number;
+    payee?: string | null;
+    category?: string | null;
+    notes?: string | null;
+  }> = [];
 
   async init(): Promise<void> {
     console.log('MockBudgetService: Initialized');
@@ -12,15 +20,19 @@ export class MockBudgetService implements IActualBudgetService {
     console.log('MockBudgetService: Budget downloaded (mock)');
   }
 
-  async getAccounts(): Promise<any[]> {
-    return [{ id: 'local_1', name: 'Local Wallet', type: 'credit' }];
+  async getAccounts(): Promise<Account[]> {
+    return [
+      { id: 'local_1', name: 'Local Wallet', offbudget: false },
+      { id: 'local_2', name: 'Bank Account', offbudget: false },
+    ];
   }
 
-  async getCategories(): Promise<any[]> {
+  async getCategories(): Promise<Category[]> {
     return [
-      { id: 'cat_food', name: 'Food', type: 'expense' },
-      { id: 'cat_transport', name: 'Transport', type: 'expense' },
-      { id: 'cat_utilities', name: 'Utilities', type: 'expense' }
+      { id: 'cat_food', name: 'Food', is_income: false },
+      { id: 'cat_transport', name: 'Transport', is_income: false },
+      { id: 'cat_utilities', name: 'Utilities', is_income: false },
+      { id: 'cat_income', name: 'Income', is_income: true },
     ];
   }
 
@@ -34,7 +46,7 @@ export class MockBudgetService implements IActualBudgetService {
         amount: tx.amount ?? 0,
         payee: tx.payee ?? null,
         category: tx.category ?? null,
-        notes: tx.notes ?? null
+        notes: tx.notes ?? null,
       };
       this.transactions.push(newTx);
       console.log(`MockBudgetService: Added transaction`, newTx);
@@ -48,7 +60,7 @@ export class MockBudgetService implements IActualBudgetService {
       added: transactions.length,
       updated: 0,
       skipped: 0,
-      errors: []
+      errors: [],
     };
   }
 

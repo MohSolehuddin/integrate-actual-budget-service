@@ -24,7 +24,7 @@ export class BudgetService {
     this.budgetRepo = budgetRepo;
   }
 
-  async getOrCreateBudget(senderId: string): Promise<{ budgetId: number; email: string; accounts: any[] } > {
+  async getOrCreateBudget(senderId: string): Promise<{ budgetId: number; email: string; accounts: any[] }> {
     let user = await this.budgetRepo.getUserBySenderId(senderId);
     if (!user) {
       console.log(`[BudgetService] Creating new user for sender_id: ${senderId}`);
