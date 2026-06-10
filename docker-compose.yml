@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -12,7 +10,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-data:/var/lib/postgresql/data
     networks:
       - budget-network
 
@@ -25,7 +23,7 @@ services:
     ports:
       - "5006:5006"
     volumes:
-      - actual_budget_data:/data
+      - ./actual-budget-data:/data
     networks:
       - budget-network
 
@@ -58,25 +56,6 @@ services:
     networks:
       - budget-network
 
-  # Actual Budget HTTP API Wrapper
-  actual_http_api:
-    image: jhonderson/actual-http-api:26.6.0
-    container_name: actual-http-api
-    env_file:
-      - .env.actual-http-api
-    ports:
-      - "5007:5007"
-    environment:
-      - NODE_ENV=production
-      - PORT=5007
-    networks:
-      - budget-network
-    restart: unless-stopped
-
 networks:
   budget-network:
     driver: bridge
-
-volumes:
-  postgres_data:
-  actual_budget_data:

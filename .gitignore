@@ -38,3 +38,5 @@ database.sqlite
 
 # Actual Budget local data cache
 budget-data/
+actual-budget-data
+postgres-data
